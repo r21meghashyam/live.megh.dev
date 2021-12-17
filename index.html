@@ -1,0 +1,163 @@
+<script>
+    let DOWN_TIME_LIMIT = 10000;
+    let RELOAD_TIME = 60000;
+
+    let pingTime = Number(localStorage.getItem("pingTime"));
+    if (pingTime == 0) {
+        pingTime = Date.now();
+        localStorage.setItem("pingTime", pingTime);
+    }
+    let downTimes = JSON.parse(localStorage.getItem("downTimes")) || [];
+    let lastPingTime = pingTime;
+    let elapsedTime = 0;
+    let previousElapsedTime = 0;
+    let UP = new Audio("up.wav")
+    let DOWN = new Audio("down.wav")
+    DOWN.volume = 0.5;
+
+    window.onload = () => {
+        downTimes.forEach(downTimeItem => addDownTime(downTimeItem.down, downTimeItem.up))
+    }
+
+    getTimeString = (mills) => {
+        let days = Math.floor(mills / 24 / 60 / 60 / 1000);
+        mills = mills % (24 * 60 * 60 * 1000);
+        let hours = Math.floor(mills / 60 / 60 / 1000);
+        mills = mills % (60 * 60 * 1000);
+        let minutes = Math.floor(mills / 60 / 1000);
+        mills = mills % (60 * 1000);
+        let seconds = Math.floor(mills / 1000);
+        mills = mills % (1000);
+
+        let str = "";
+        if (days > 0)
+            str += days + "d "
+        if (hours > 0)
+            str += hours + "h "
+        if (minutes > 0)
+            str += minutes + "m "
+        if (seconds > 0)
+            str += seconds + "s "
+        if (mills > 0)
+            str += mills + "ms"
+
+        return str;
+    }
+
+    addDownTime = (downTime, uptime) => {
+        let downTimeString = new Date(downTime).toLocaleString();
+        let upTimeString = new Date(uptime).toLocaleString();
+        let downTimeDiff = getTimeString(uptime - downTime);
+        document.getElementById("log").innerHTML = '<div id="item">' + downTimeString + ' to ' + upTimeString + ' (' + downTimeDiff + ')</div>' + document.getElementById("log").innerHTML;
+    }
+
+    setInterval(() => {
+        let elapsedTime = Date.now() - pingTime;
+
+        let range = elapsedTime / DOWN_TIME_LIMIT * 150;
+        if (range > 150)
+            range = 150;
+
+        let red = 255;
+        let green = 255;
+        let yellow = 180;
+
+        range = range - 75;
+
+        if (range < 0)
+            red += range;
+        else
+            green += (range * -1);
+
+        document.getElementById("time").innerHTML = getTimeString(elapsedTime);
+        document.getElementById("time").style.color = "rgb(" + red + "," + green + "," + yellow + ")"
+
+
+
+        if (elapsedTime > DOWN_TIME_LIMIT) {
+            DOWN.play();
+        }
+
+        if (previousElapsedTime > DOWN_TIME_LIMIT && elapsedTime < DOWN_TIME_LIMIT) {
+            UP.play();
+            addDownTime(lastPingTime, pingTime);
+            downTimes.push({ down: lastPingTime, up: pingTime });
+            localStorage.setItem("downTimes", JSON.stringify(downTimes));
+        }
+
+        if (elapsedTime % RELOAD_TIME < RELOAD_TIME / 2 && previousElapsedTime % RELOAD_TIME > RELOAD_TIME / 2) {
+            location.reload();
+        }
+
+        previousElapsedTime = elapsedTime
+
+    }, 1000);
+
+    wait = (time) => new Promise((res, rej) => {
+        setTimeout(() => {
+            res(true)
+        }, time);
+    })
+
+    getWS = async () => {
+        let ws = new WebSocket("ws://" + location.hostname + ":7071");
+        ws.onopen = () => console.log("Connection open");
+        ws.onclose = async () => {
+            ws = await getWS();
+        }
+        ws.onmessage = () => {
+            lastPingTime = pingTime;
+            pingTime = Date.now();
+            localStorage.setItem("pingTime", pingTime);
+
+        }
+        return ws;
+    }
+
+
+
+    const main = async () => {
+        let ws = await getWS();
+
+
+    }
+    main();
+
+</script>
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        height: 100vh;
+        align-items: center;
+        background: black;
+        flex-direction: column;
+    }
+
+    #time {
+        font-size: 8em;
+        font-family: monospace;
+        color: bisque;
+    }
+
+    small {
+        font-size: 0.2em;
+        font-style: italic;
+    }
+
+    #item {
+        padding: 10px;
+        color: #454545;
+    }
+
+    #prefix {
+        color: burlywood;
+        font-family: monospace;
+    }
+</style>
+<div id="prefix">Time elapsed since last ping:</div>
+<div id="time">Loading...</div>
+<div id="prefix">Network downtimes:</div>
+<div id="log">
+
+</div>
