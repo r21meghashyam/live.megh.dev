@@ -16,6 +16,6 @@ app.get("/", (req, res) => {
 })
 app.use(express.static("assets"));
 
-app.listen(8080, () => {
-    console.log("STARTED");
+app.listen(process.env.PORT, () => {
+    console.log("STARTED on port" + process.env.PORT);
 });
